@@ -16,6 +16,7 @@
 Stage::Stage(GameObject* parent)
 	:GameObject(parent, "Stage"),  pConstantBuffer_(nullptr)
 {
+	//Initialize()でモデルを読み込むまでは、モデル番号は-1にしておく
 	hball_ = -1;
 	hRoom_ = -1;
 	hGround_ = -1;
@@ -57,7 +58,7 @@ void Stage::Initialize()
 	assert(hRoom_ >= 0);
 	hGround_ = Model::Load("plane3.fbx");
 	assert(hGround_ >= 0);
-	hDonut_ = Model::Load("normalmapedbox.fbx");
+	hDonut_ = Model::Load("Donut_phong.fbx");
 	assert(hDonut_ >= 0);
 	//pMelbourne_ = new Sprite(L"Assets\\melbourne.png");
 	Camera::SetPosition({ 0, 0.8, -2.8 });
@@ -139,11 +140,11 @@ void Stage::Draw()
     Model::Draw(hRoom_);
 
     static Transform tDonut;
-    tDonut.scale_ = { 1,1,1 };
-    tDonut.position_ = { 0, 0.5, 1.0 };
+    tDonut.scale_ = { 0.3f, 0.3f, 0.3f };
+    tDonut.position_ = { 0, 0.5, 0.5 };
     tDonut.rotate_.y += 0.1;
     Model::SetTransform(hDonut_, tDonut);
-    Model::DrawNormalMapped(hDonut_);
+    Model::Draw(hDonut_);
 
 	ImGui::Text("Stage Class rot:%lf", tDonut.rotate_.z);
 }
