@@ -36,6 +36,12 @@ namespace Direct3D
 	
     SHADER_BUNDLE shaderBundle[SHADER_MAX];	//シェーダーのバンドル
 	XMFLOAT4 lightPosition{ 0.0f, 0.5f ,0.0f, 0.0f }; //ライトの位置
+	int screenWidth; //画面幅
+	int screenHeight; //画面高さ
+
+	ID3D11Texture2D* pShadowMapTexture = nullptr; //シャドウマップ用のテクスチャ
+	ID3D11DepthStencilView* pShadowMapDSV = nullptr; //シャドウマップ用の深度ステンシルビュー
+	ID3D11ShaderResourceView* pShadowMapSRV = nullptr; //シャドウマップ用のシェーダーリソースビュー
 }
 
 
@@ -139,6 +145,65 @@ HRESULT Direct3D::InitNormalShader()
 
 
     return S_OK;
+}
+
+HRESULT Direct3D::InitShadowShader()
+{
+    HRESULT hr;
+
+    // 頂点シェーダの作成（コンパイル）
+    ID3DBlob* pCompileVS = nullptr;
+    D3DCompileFromFile(L"ShadowMap.hlsl", nullptr, nullptr, "VS", "vs_5_0", NULL, 0, &pCompileVS, NULL);
+    assert(pCompileVS != nullptr);
+
+    hr = pDevice->CreateVertexShader(pCompileVS->GetBufferPointer(),
+        pCompileVS->GetBufferSize(), NULL, &(shaderBundle[SHADER_SHADOWMAP].pVertexShader));
+    if (FAILED(hr))
+    {
+        MessageBox(nullptr, L"頂点シェーダの作成の作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+    }
+
+    // ピクセルシェーダの作成（コンパイル）
+    ID3DBlob* pCompilePS = nullptr;
+    D3DCompileFromFile(L"ShadowMap.hlsl", nullptr, nullptr, "PS", "ps_5_0", NULL, 0, &pCompilePS, NULL);
+    assert(pCompilePS != nullptr);
+    hr = pDevice->CreatePixelShader(pCompilePS->GetBufferPointer(),
+        pCompilePS->GetBufferSize(), NULL, &(shaderBundle[SHADER_SHADOWMAP].pPixelShader));
+    if (FAILED(hr))
+    {
+        MessageBox(nullptr, L"ピクセルシェーダの作成の作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+    }
+
+    //頂点インプットレイアウト
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,  0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },	//位置
+    };
+    hr = pDevice->CreateInputLayout(layout, 1, pCompileVS->GetBufferPointer(),
+        pCompileVS->GetBufferSize(), &(shaderBundle[SHADER_SHADOWMAP].pVertexLayout));
+    if (FAILED(hr))
+    {
+        MessageBox(nullptr, L"頂点インプットレイアウトの作成の作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+    }
+
+    pCompileVS->Release();
+    pCompilePS->Release();
+
+    //ラスタライザ作成
+    D3D11_RASTERIZER_DESC rdc = {};
+	rdc.CullMode = D3D11_CULL_NONE;//シャドウマップは両面描画するからカリングなし
+    rdc.FillMode = D3D11_FILL_SOLID;
+    rdc.FrontCounterClockwise = FALSE;
+	rdc.DepthClipEnable = TRUE; //深度クリッピングを有効にする
+    hr = pDevice->CreateRasterizerState(&rdc, &(shaderBundle[SHADER_SHADOWMAP].pRasterizerState));
+    if (FAILED(hr))
+    {
+        MessageBox(nullptr, L"ラスタライザの作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+    }
+	return S_OK;
 }
 
 HRESULT Direct3D::InitShader3D()
@@ -298,6 +363,9 @@ void Direct3D::SetShader(SHADER_TYPE type)
 
 HRESULT Direct3D::Initialize(int winW, int winH, HWND hWnd)
 {
+	screenWidth = winW;
+	screenHeight = winH;
+
     // Direct3Dの初期化
     DXGI_SWAP_CHAIN_DESC scDesc = {};
     //とりあえず全部0
@@ -386,6 +454,15 @@ HRESULT Direct3D::Initialize(int winW, int winH, HWND hWnd)
     {
         return hr;
     }
+
+	const int MAP_SIZE_X = 1024;
+	const int MAP_SIZE_Y = 1024;
+
+    hr = InitShadowMap(MAP_SIZE_X, MAP_SIZE_Y);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
     return S_OK;
 
 }
@@ -427,9 +504,13 @@ void Direct3D::Release()
     SAFE_RELEASE(pPixelShader);
     SAFE_RELEASE(pVertexShader);
 
-    SAFE_RELEASE(pDevice);		                    //デバイス
+    SAFE_RELEASE(pDevice);		            //デバイス
     SAFE_RELEASE(pContext);	                //デバイスコンテキスト
-    SAFE_RELEASE(pSwapChain);		                //スワップチェイン
+    SAFE_RELEASE(pSwapChain);		        //スワップチェイン
+	SAFE_RELEASE(pShadowMapSRV);            //シャドウマップ用のシェーダーリソースビュー
+    SAFE_RELEASE(pShadowMapDSV);            //シャドウマップ用の深度ステンシルビュー
+	SAFE_RELEASE(pShadowMapTexture);        //シャドウマップ用のテクスチャ
+
     SAFE_RELEASE(pRenderTargetView);	    //レンダーターゲットビュー
 }
 
@@ -441,4 +522,81 @@ XMFLOAT4 Direct3D::GetLightPos()
 void Direct3D::SetLightPos(DirectX::XMFLOAT4 pos)
 {
 	lightPosition = pos;
+}
+
+DirectX::XMMATRIX Direct3D::GetLightViewMatrix()
+{
+    XMVECTOR lightDir = XMVector3Normalize(XMLoadFloat4(&lightPosition));
+	XMVECTOR lightEye = lightDir * 10.0f; // ライトの位置を光源方向に沿って少し離す
+	XMVECTOR lightAt = XMVectorZero(); // 原点を注視点とする
+	XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f); // 上方向をY軸に設定
+
+    //エラー回避
+	float dotY = fabsf(XMVectorGetX(XMVector3Dot(lightDir, lightUp)));
+    if (dotY > 0.999f) // ライトの方向が上方向とほぼ平行な場合
+    {
+		lightUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f); // 上方向をZ軸に変更
+	}
+
+	return XMMatrixLookAtLH(lightEye, lightAt, lightUp);
+}
+
+DirectX::XMMATRIX Direct3D::GetLightProjectionMatrix()
+{
+	XMMATRIX rMat = XMMatrixOrthographicLH(5.0f, 5.0f, 0.1f, 50.0f); // 幅、高さ、近距離、遠距離
+	return rMat;//ライトの投影行列を返す 平行投影
+}
+
+HRESULT Direct3D::InitShadowMap(int width, int height)
+{
+    HRESULT hr;
+	//シャドウマップ用のテクスチャ作成
+	D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = width;
+    desc.Height = height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R32_TYPELESS;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+	hr = pDevice->CreateTexture2D(&desc, nullptr, &pShadowMapTexture);
+    if (FAILED(hr)) {
+		MessageBox(nullptr, L"シャドウマップ用テクスチャの作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+    }
+
+	//深度ステンシルビューの作成
+    D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
+    dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Texture2D.MipSlice = 0;//ミップレベル0を使用
+    hr = pDevice->CreateDepthStencilView(pShadowMapTexture, &dsvDesc, &pShadowMapDSV);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"シャドウマップ用深度ステンシルビューの作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+	}
+
+    //シェーダーリソースビューの作成
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_R32_FLOAT; // 深度値を読み取るためのフォーマット
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+    hr = pDevice->CreateShaderResourceView(pShadowMapTexture, &srvDesc, &pShadowMapSRV);
+    if (FAILED(hr)) {
+        MessageBox(nullptr, L"シャドウマップ用シェーダーリソースビューの作成に失敗しました", L"エラー", MB_OK);
+        return hr;
+    }
+
+	hr = S_OK;
+	return hr;
+}
+
+ID3D11ShaderResourceView* Direct3D::GetShadowMapSRV()
+{
+	return pShadowMapSRV;
 }

@@ -16,6 +16,7 @@ enum SHADER_TYPE
 	SHADER_3D,	//3D用シェーダー
 	SHADER_2D,	//2D用シェーダー
 	SHADER_NORMALMAP, //法線マップ用シェーダー
+	SHADER_SHADOWMAP, //シャドウマップ用シェーダー
 	SHADER_MAX //シェーダーの最大数
 };
 
@@ -29,6 +30,7 @@ namespace Direct3D
 	HRESULT InitShader3D();//3D用シェーダー初期化
 	HRESULT InitShader2D();//2D用シェーダー初期化
 	HRESULT InitNormalShader(); //法線マップ用シェーダー初期化
+	HRESULT InitShadowShader(); //シャドウマップ用シェーダー初期化
 
 	void SetShader(SHADER_TYPE type); //シェーダーをセット
 
@@ -42,9 +44,20 @@ namespace Direct3D
 	//描画終了
 	void EndDraw();
 
+	//シャドウマップ描画開始
+	void BeginShadowPass();
+	//シャドウマップ描画終了
+	void EndShadowPass();
+
 	//解放
 	void Release();
 
 	DirectX::XMFLOAT4 GetLightPos(); //ライトの位置
 	void SetLightPos(DirectX::XMFLOAT4 pos); //ライトの位置設定
+
+	DirectX::XMMATRIX GetLightViewMatrix(); //ライトのビュー行列取得
+	DirectX::XMMATRIX GetLightProjectionMatrix(); //ライトの投影行列取得
+
+	HRESULT InitShadowMap(int width, int height); //シャドウマップの初期化
+	ID3D11ShaderResourceView* GetShadowMapSRV(); //シャドウマップのシェーダーリソースビュー取得
 };

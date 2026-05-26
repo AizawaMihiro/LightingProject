@@ -194,6 +194,9 @@
     <FxCompile Include="Simple3D.hlsl" />
     <FxCompile Include="Simple2D.hlsl" />
     <FxCompile Include="NormalShader.hlsl" />
+    <FxCompile Include="ShadowMap.hlsl">
+      <Filter>リソース ファイル</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
