@@ -11,6 +11,7 @@ Fbx::Fbx()
 	: pVertexBuffer_(nullptr)
 	, pIndexBuffer_(nullptr)
 	, pConstantBuffer_(nullptr)
+	, pShadowConstantBuffer_(nullptr)
 	, vertexCount_(0)
 	, polygonCount_(0)
 	, materialCount_(0)
@@ -247,6 +248,38 @@ void Fbx::DrawNormalMapped(Transform& transform)
 		}
 		// =============================================================
 
+		Direct3D::pContext->DrawIndexed(indexCount_[i], 0, 0);
+	}
+}
+
+void Fbx::DrawShadow(Transform& transform)
+{
+	// シャドウマップ用の描画関数:ライト視点のワールドビュー射影行列をセットして描画
+	transform.Calculation();
+
+	//頂点バッファをセット
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+	Direct3D::pContext->IASetVertexBuffers(0, 1, &pVertexBuffer_, &stride, &offset);
+
+	// シャドウマップ用のコンスタントバッファを更新
+	SHADOW_CONSTANT_BUFFER scb;
+	scb.matLightWVP = transform.GetWorldMatrix() 
+					* Direct3D::GetLightViewMatrix() 
+					* Direct3D::GetLightProjectionMatrix();
+
+	D3D11_MAPPED_SUBRESOURCE pdata;
+	Direct3D::pContext->Map(pShadowConstantBuffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &pdata);
+	memcpy_s(pdata.pData, pdata.RowPitch, (void*)(&scb), sizeof(scb));
+	Direct3D::pContext->Unmap(pShadowConstantBuffer_, 0);
+
+	Direct3D::pContext->VSSetConstantBuffers(0, 1, &pShadowConstantBuffer_);	// 頂点シェーダー用
+
+	for (int i = 0; i < materialCount_; i++)
+	{
+		// インデックスバッファーをセット
+		Direct3D::pContext->IASetIndexBuffer(pIndexBuffer_[i], DXGI_FORMAT_R32_UINT, 0);
+		// 描画
 		Direct3D::pContext->DrawIndexed(indexCount_[i], 0, 0);
 	}
 }
@@ -512,6 +545,21 @@ void Fbx::InitConstantBuffer()
 	if (FAILED(hr))
 	{
 		MessageBox(NULL, L"コンスタントバッファの作成に失敗しました", L"エラー", MB_OK);
+	}
+
+	D3D11_BUFFER_DESC scb = {};
+	scb.ByteWidth = sizeof(SHADOW_CONSTANT_BUFFER);
+	scb.Usage = D3D11_USAGE_DYNAMIC;
+	scb.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	scb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	scb.MiscFlags = 0;
+	scb.StructureByteStride = 0;
+
+	// コンスタントバッファの作成
+	hr = Direct3D::pDevice->CreateBuffer(&scb, nullptr, &pShadowConstantBuffer_);
+	if (FAILED(hr))
+	{
+		MessageBox(NULL, L"シャドウコンスタントバッファの作成に失敗しました", L"エラー", MB_OK);
 	}
 }
 

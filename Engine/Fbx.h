@@ -37,6 +37,7 @@ public:
 	HRESULT Load(std::string fileName);
 	void    Draw(Transform& transform);
 	void	DrawNormalMapped(Transform& transform);  // ← ノーマルマップ描画を追加
+	void	DrawShadow(Transform& transform);
 	void    Release();
 
 	void InitVertex(FbxMesh* mesh);
@@ -70,6 +71,11 @@ private:
 		BOOL		materialFlag; //マテリアルがあるかないか
 	};
 
+	struct SHADOW_CONSTANT_BUFFER
+	{
+		XMMATRIX	matLightWVP; //ライトのワールドビュー射影行列
+	};
+
 	struct VERTEX
 	{
 		XMVECTOR position;
@@ -83,6 +89,8 @@ private:
 	ID3D11Buffer* pVertexBuffer_;
 	ID3D11Buffer** pIndexBuffer_;
 	ID3D11Buffer* pConstantBuffer_;
+	ID3D11Buffer* pShadowConstantBuffer_;
+
 	std::vector<MATERIAL> pMaterialList_;
 	std::vector<int> indexCount_;//マテリアルごとのインデックス数
 
