@@ -10,6 +10,8 @@ struct CONSTANTBUFFER_STAGE
 {
 	XMFLOAT4 lightPosition;// 光源の位置(らんばーとのときは方向）
 	XMFLOAT4 eyePosition; // カメラの位置
+	XMFLOAT3 _pad;		// 16バイトアラインメントのためのパディング
+	XMFLOAT4X4 matLightVP; // ライトのビュー射影行列
 };
 
 class Stage :

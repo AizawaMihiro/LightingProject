@@ -63,6 +63,23 @@ void Stage::Initialize()
 	//pMelbourne_ = new Sprite(L"Assets\\melbourne.png");
 	Camera::SetPosition({ 0, 0.8, -2.8 });
 	Camera::SetTarget({ 0,0.8,0 });
+
+    // サンプラーステート作成
+    D3D11_SAMPLER_DESC sd = {};
+    sd.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;  // トライリニアフィルタ
+    sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;     // リピート
+    sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.BorderColor[0] = 1.0f;
+	sd.BorderColor[1] = 1.0f;
+	sd.BorderColor[2] = 1.0f;
+	sd.BorderColor[3] = 1.0f;
+    sd.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+	ID3D11SamplerState* pShadowSampler = nullptr;
+    HRESULT hr = Direct3D::pDevice->CreateSamplerState(&sd, &pShadowSampler);
+	Direct3D::pContext->PSSetSamplers(1, 1, &pShadowSampler);	//スロット1にシャドウマップ用サンプラーをセット
+	SAFE_RELEASE(pShadowSampler);
 }
 
 void Stage::Update()
@@ -110,6 +127,12 @@ void Stage::Update()
     cb.lightPosition = Direct3D::GetLightPos();
     XMStoreFloat4(&cb.eyePosition, Camera::GetPosition());
 
+	//ライトのビュー射影行列は、ライトの位置と向きから計算する
+    XMMATRIX lightV = Direct3D::GetLightViewMatrix();
+	XMMATRIX lightP = Direct3D::GetLightProjectionMatrix();
+	XMMATRIX lightVP = lightV * lightP;
+	XMStoreFloat4x4(&cb.matLightVP, lightVP);
+
     D3D11_MAPPED_SUBRESOURCE pdata;
     Direct3D::pContext->Map(pConstantBuffer_, 0, D3D11_MAP_WRITE_DISCARD, 0, &pdata);	// GPUからのデータアクセスを止める
     memcpy_s(pdata.pData, pdata.RowPitch, (void*)(&cb), sizeof(cb));	// データを値を送る
@@ -126,26 +149,39 @@ void Stage::Draw()
     ltr.position_ = { Direct3D::GetLightPos().x,Direct3D::GetLightPos().y,Direct3D::GetLightPos().z };
     ltr.scale_ = { 0.1,0.1,0.1 };
     Model::SetTransform(hball_, ltr);
-    Model::Draw(hball_);
 
 
     Transform tr;
     tr.position_ = { 0, 0, 0 };
-    //tr.scale_ = { 5.0f, 5.0f, 5.0f };
     tr.rotate_ = { 0, 180, 0 };
     //Model::SetTransform(hGround, tr);
     //Model::Draw(hGround);
 
     Model::SetTransform(hRoom_, tr);
-    Model::Draw(hRoom_);
 
     static Transform tDonut;
     tDonut.scale_ = { 0.3f, 0.3f, 0.3f };
     tDonut.position_ = { 0, 0.5, 0.5 };
     tDonut.rotate_.y += 0.1;
     Model::SetTransform(hDonut_, tDonut);
-    Model::Draw(hDonut_);
 
+	//1回目の描画でシャドウマップを作る
+	Direct3D::BeginShadowPass();
+	Model::DrawShadowMap(hDonut_);
+	Direct3D::EndShadowPass();
+
+	ID3D11ShaderResourceView* pShadowSRV = Direct3D::GetShadowMapSRV();
+	Direct3D::pContext->PSSetShaderResources(1, 1, &pShadowSRV);	//スロット1にシャドウマップをセット
+
+	//2回目の描画で通常描画
+	Model::Draw(hball_);
+	Model::Draw(hRoom_);
+	Model::Draw(hDonut_);
+
+	ID3D11ShaderResourceView* nullSRV = nullptr;
+	Direct3D::pContext->PSSetShaderResources(1, 1, &nullSRV);	//スロット1にnullをセットしてシャドウマップの使用を止める
+
+    //Imgui
 	ImGui::Text("Stage Class rot:%lf", tDonut.rotate_.z);
 }
 
