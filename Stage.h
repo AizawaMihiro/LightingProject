@@ -10,6 +10,7 @@ struct CONSTANTBUFFER_STAGE
 {
 	XMFLOAT4 lightPosition;// 光源の位置(らんばーとのときは方向）
 	XMFLOAT4 eyePosition; // カメラの位置
+	int lightType; // ライトの種類（0:点光源、1:スポットライト、2:平行光源） // 16バイトアラインメントのためのパディング
 	XMFLOAT3 _pad;		// 16バイトアラインメントのためのパディング
 	XMFLOAT4X4 matLightVP; // ライトのビュー射影行列
 };
