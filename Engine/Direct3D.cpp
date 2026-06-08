@@ -520,12 +520,13 @@ void Direct3D::BeginShadowPass()
 void Direct3D::EndShadowPass()
 {
 	pContext->OMSetRenderTargets(1, &pRenderTargetView, pDepthStencilView); // 通常のレンダーターゲットと深度ステンシルビューに戻す
-	D3D11_VIEWPORT vp;
+	D3D11_VIEWPORT vp = {};
 	vp.Width = (float)screenWidth;
 	vp.Height = (float)screenHeight;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
 	pContext->RSSetViewports(1, &vp);
+	SetShader(SHADER_3D); // 通常のシェーダーに戻す
 }
 
 void Direct3D::Release()
