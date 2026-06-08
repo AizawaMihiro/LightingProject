@@ -28,7 +28,7 @@ cbuffer gStage : register(b1)
     float4 lightPosition;
     float4 eyePosition;
     float3 _pad;
-    float4x4 matLightVP; // ライトのビュー・プロジェクション行列（シャドウマップ用）
+    row_major float4x4 matLightVP; // ライトのビュー・プロジェクション行列（シャドウマップ用）
 };
 
 
@@ -150,9 +150,9 @@ float4 PS(VS_OUT inData) : SV_Target
     
     if (shadowUV.x >= 0.0f && shadowUV.x <= 1.0f && shadowUV.y >= 0.0f && shadowUV.y <= 1.0f)
     {
-        float currentDepth = inData.spos.z / inData.spos.w; // 現在のピクセルの深度
+        float currentDepth = lightClipPos.z / lightClipPos.w; // 現在のピクセルの深度（ライト空間での深度）を計算
         float bias = 0.005f; // シャドウアクネを防止するためのバイアス
-        float shadowDepth = g_shadowMap.Sample(g_shadowSampler, inData.uv).r; // シャドウマップからの深度
+        float shadowDepth = g_shadowMap.Sample(g_shadowSampler, shadowUV).r; // シャドウマップからの深度
         if ((currentDepth - bias) > shadowDepth)
         {
             shadow = 0.0f;
@@ -162,7 +162,6 @@ float4 PS(VS_OUT inData) : SV_Target
             shadow = 1.0f;
         }
     }
-    
     color *= (0.3 + 0.7 * shadow);
     
     return color;
