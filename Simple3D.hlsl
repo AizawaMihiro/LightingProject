@@ -3,6 +3,8 @@
 //───────────────────────────────────────
 Texture2D g_texture : register(t0); //テクスチャー
 SamplerState g_sampler : register(s0); //サンプラー
+Texture2D g_shadowMap : register(t1); //テクスチャー
+SamplerState g_shadowSampler : register(s1); //サンプラー
 
 //───────────────────────────────────────
 // コンスタントバッファ
@@ -25,6 +27,8 @@ cbuffer gStage : register(b1)
 {
     float4 lightPosition;
     float4 eyePosition;
+    float3 _pad;
+    row_major float4x4 matLightVP; // ライトのビュー・プロジェクション行列（シャドウマップ用）
 };
 
 
@@ -135,5 +139,30 @@ float4 PS(VS_OUT inData) : SV_Target
     }
     
     float4 color = diffuseTerm + specularCol + ambientTerm;
+    
+    // シャドウマップによる影の適用
+    float shadow = 1.0f; // シャドウマップからの影の値（1.0 = 光が当たっている、0.0 = 完全に影）
+    
+    float4 lightClipPos = mul(inData.wpos, matLightVP); // ライトのビュー・プロジェクション行列で変換
+    float2 shadowUV;
+    shadowUV.x = lightClipPos.x / lightClipPos.w * 0.5f + 0.5f; // NDC座標をUV座標に変換
+    shadowUV.y = -lightClipPos.y / lightClipPos.w * 0.5f + 0.5f; // Y軸は反転
+    
+    if (shadowUV.x >= 0.0f && shadowUV.x <= 1.0f && shadowUV.y >= 0.0f && shadowUV.y <= 1.0f)
+    {
+        float currentDepth = lightClipPos.z / lightClipPos.w; // 現在のピクセルの深度（ライト空間での深度）を計算
+        float bias = 0.005f; // シャドウアクネを防止するためのバイアス
+        float shadowDepth = g_shadowMap.Sample(g_shadowSampler, shadowUV).r; // シャドウマップからの深度
+        if ((currentDepth - bias) > shadowDepth)
+        {
+            shadow = 0.0f;
+        }
+        else
+        {
+            shadow = 1.0f;
+        }
+    }
+    color *= (0.3 + 0.7 * shadow);
+    
     return color;
 }

@@ -49,6 +49,11 @@ void Model::DrawNormalMapped(int hModel)
 	modelList[hModel]->pfbx_->DrawNormalMapped(modelList[hModel]->transform_);
 }
 
+void Model::DrawShadowMap(int hModel)
+{
+	modelList[hModel]->pfbx_->DrawShadow(modelList[hModel]->transform_);
+}
+
 void Model::Release()
 {
 	bool isReffered = false;//参照されているか
