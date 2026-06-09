@@ -17,6 +17,8 @@
 #include "imgui/imgui_impl_dx11.h"
 #include "imgui/imgui_impl_win32.h"
 
+#include "Audio.h"
+
 
 #pragma comment(lib, "winmm.lib")
 
@@ -88,6 +90,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	Camera::Initialize(); // カメラの初期化
 
 	Input::Initialize(hWnd); // 入力の初期化
+    
+	Audio::Initialize();//オーディオの初期化
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_MYFIRSTGAME));
 
@@ -143,6 +147,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 		pRootJob->UpdateSub();
 
+		Audio::Update();//オーディオの更新
+
         if (Input::IsKeyDown(DIK_ESCAPE))
         {
             static int cnt = 0;
@@ -164,6 +170,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	Model::Release();
 	pRootJob->ReleaseSub();
+	Audio::Release();
 	Input::Release();
     Direct3D::Release();
 

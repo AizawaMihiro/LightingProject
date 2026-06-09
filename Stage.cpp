@@ -11,6 +11,14 @@
 #include "imgui/imgui_impl_dx11.h"
 #include "imgui/imgui_impl_win32.h"
 
+#include <memory>
+#include "Audio.h"
+#include <filesystem>
+
+namespace {
+    //std::unique_ptr<DirectX::AudioEngine> pAudioEngine;  //オーディオのシステム自体
+    //std::unique_ptr<DirectX::SoundEffect>  pSound;       //サウンドのメモリが入るクラス
+}
 
 
 Stage::Stage(GameObject* parent)
@@ -80,6 +88,16 @@ void Stage::Initialize()
     HRESULT hr = Direct3D::pDevice->CreateSamplerState(&sd, &pShadowSampler);
 	Direct3D::pContext->PSSetSamplers(1, 1, &pShadowSampler);	//スロット1にシャドウマップ用サンプラーをセット
 	SAFE_RELEASE(pShadowSampler);
+
+	std::filesystem::path filePath1 = "Assets\\Audio\\SE1.WAV";
+	Audio::Load("SE1", filePath1);
+	std::filesystem::path filePath2 = "Assets\\Audio\\SE1.WAV";
+	Audio::Load("SE2", filePath2);
+	std::filesystem::path filePath3 = "Assets\\Audio\\SE3.WAV";
+	Audio::Load("SE3", filePath3);
+	//pAudioEngine = std::make_unique<DirectX::AudioEngine>();//オーディオエンジンの作成(プログラム全体で1つあればいい)
+	//pSound = std::make_unique<DirectX::SoundEffect>(pAudioEngine.get(), filePath.c_str());//サウンドの読み込み
+
 }
 
 void Stage::Update()
@@ -141,6 +159,12 @@ void Stage::Update()
     //コンスタントバッファ
     Direct3D::pContext->VSSetConstantBuffers(1, 1, &pConstantBuffer_);	//頂点シェーダー用	
     Direct3D::pContext->PSSetConstantBuffers(1, 1, &pConstantBuffer_);	//ピクセルシェーダー用
+
+    if (Input::IsKeyDown(DIK_SPACE))
+    {
+		Audio::Play("SE2");
+        //pSound->Play();
+    }
 }
 
 void Stage::Draw()

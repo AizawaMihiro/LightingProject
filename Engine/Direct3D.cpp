@@ -637,5 +637,3 @@ ID3D11ShaderResourceView* Direct3D::GetShadowMapSRV()
 {
 	return pShadowMapSRV;
 }
-
-//サウンド関係の作業開始（次回のコミットで消去）
